@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with TimescaleDB extension
+  postgres:
+    image: timescale/timescaledb:latest-pg14
+    container_name: aqua-postgres
+    environment:
+      POSTGRES_USER: aqua_admin
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB: aquaculture_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aqua_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # EMQX MQTT Broker
+  emqx:
+    image: emqx/emqx:5.0
+    container_name: aqua-mqtt
+    environment:
+      - EMQX_NAME=aqua-mqtt
+      - EMQX_HOST=node1.emqx.io
+      - EMQX_CLUSTER__DISCOVERY_STRATEGY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=[node1.emqx.io]
+    ports:
+      - "1883:1883"   # MQTT TCP
+      - "8883:8883"   # MQTT TLS
+      - "8083:8083"   # MQTT WebSocket
+      - "8084:8084"   # MQTT WSS
+      - "18083:18083" # Dashboard
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "emqx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: aqua-redis
+    command: redis-server --requirepass secure_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  emqx_data:
+  emqx_log:
+  redis_data:
+
+networks:
+  default:
+    name: aquaculture-network
