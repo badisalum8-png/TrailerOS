@@ -1,6 +1,5 @@
 import { query } from '../db/index.js';
 import { createAlert, checkDuplicateActiveAlert } from './alertService.js';
-import { getAutomationRulesByPond } from './automationService.js';
 
 /**
  * Process incoming telemetry data from IoT devices

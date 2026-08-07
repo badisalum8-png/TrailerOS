@@ -1,166 +1,172 @@
-const express = require('express');
+import express from 'express';
+import { 
+  createPond, 
+  getPondsByFarm, 
+  getPondById, 
+  updatePond, 
+  deletePond,
+  getPondStatus,
+  getPondHistory
+} from '../services/pondService.js';
+import { getFarmById } from '../services/farmService.js';
+import { authenticate, checkOrganizationAccess } from '../middleware/auth.js';
+
 const router = express.Router();
-const pondService = require('../services/pondService');
-const auth = require('../middleware/auth');
 
-/**
- * POST /api/ponds
- * Create a new pond
- */
-router.post('/', auth, async (req, res) => {
+// All routes require authentication
+router.use(authenticate);
+router.use(checkOrganizationAccess);
+
+// Get all ponds for a farm
+router.get('/farm/:farmId', async (req, res) => {
   try {
-    const { farmId, name, code, pondType, waterSource, volumeLiters, areaSqm, fishSpecies, stockingDate, targetHarvestDate } = req.body;
+    const farm = await getFarmById(req.params.farmId);
     
-    if (!farmId || !name) {
-      return res.status(400).json({ error: 'Farm ID and pond name are required' });
+    if (!farm) {
+      return res.status(404).json({ error: 'Farm not found' });
     }
-
-    const pond = await pondService.createPond(req.user.organizationId, farmId, {
-      name,
-      code,
-      pondType,
-      waterSource,
-      volumeLiters,
-      areaSqm,
-      fishSpecies,
-      stockingDate,
-      targetHarvestDate
-    });
-
-    res.status(201).json({ success: true, data: pond });
-  } catch (error) {
-    console.error('Error creating pond:', error);
-    res.status(500).json({ error: 'Failed to create pond' });
-  }
-});
-
-/**
- * GET /api/ponds?farmId=xxx
- * Get all ponds for a specific farm
- */
-router.get('/', auth, async (req, res) => {
-  try {
-    const { farmId } = req.query;
     
-    if (!farmId) {
-      return res.status(400).json({ error: 'Farm ID is required' });
+    if (farm.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
     }
-
-    const ponds = await pondService.getPondsByFarm(req.user.organizationId, farmId);
-    res.json({ success: true, data: ponds });
+    
+    const ponds = await getPondsByFarm(req.params.farmId);
+    res.json({ ponds });
   } catch (error) {
-    console.error('Error fetching ponds:', error);
+    console.error('Fetch ponds error:', error);
     res.status(500).json({ error: 'Failed to fetch ponds' });
   }
 });
 
-/**
- * GET /api/ponds/:id
- * Get a single pond by ID
- */
-router.get('/:id', auth, async (req, res) => {
+// Create new pond
+router.post('/', async (req, res) => {
   try {
-    const pond = await pondService.getPondById(req.user.organizationId, req.params.id);
+    const farm = await getFarmById(req.body.farmId);
+    
+    if (!farm) {
+      return res.status(404).json({ error: 'Farm not found' });
+    }
+    
+    if (farm.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const pond = await createPond(req.contextOrganizationId, req.body.farmId, req.body);
+    res.status(201).json({ message: 'Pond created successfully', pond });
+  } catch (error) {
+    console.error('Create pond error:', error);
+    res.status(400).json({ error: error.message || 'Failed to create pond' });
+  }
+});
+
+// Get pond by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const pond = await getPondById(req.params.id);
     
     if (!pond) {
       return res.status(404).json({ error: 'Pond not found' });
     }
-
-    res.json({ success: true, data: pond });
+    
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    res.json({ pond });
   } catch (error) {
-    console.error('Error fetching pond:', error);
+    console.error('Fetch pond error:', error);
     res.status(500).json({ error: 'Failed to fetch pond' });
   }
 });
 
-/**
- * PUT /api/ponds/:id
- * Update pond details
- */
-router.put('/:id', auth, async (req, res) => {
+// Get pond status with latest readings
+router.get('/:id/status', async (req, res) => {
   try {
-    const updates = req.body;
-    
-    const pond = await pondService.updatePond(req.user.organizationId, req.params.id, updates);
+    const pond = await getPondById(req.params.id);
     
     if (!pond) {
       return res.status(404).json({ error: 'Pond not found' });
     }
-
-    res.json({ success: true, data: pond });
-  } catch (error) {
-    console.error('Error updating pond:', error);
-    res.status(500).json({ error: 'Failed to update pond' });
-  }
-});
-
-/**
- * DELETE /api/ponds/:id
- * Delete a pond
- */
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const deleted = await pondService.deletePond(req.user.organizationId, req.params.id);
     
-    if (!deleted) {
-      return res.status(404).json({ error: 'Pond not found' });
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
     }
-
-    res.json({ success: true, message: 'Pond deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting pond:', error);
-    res.status(500).json({ error: 'Failed to delete pond' });
-  }
-});
-
-/**
- * GET /api/ponds/:id/status
- * Get pond current status with latest sensor readings
- */
-router.get('/:id/status', auth, async (req, res) => {
-  try {
-    const status = await pondService.getPondStatus(req.user.organizationId, req.params.id);
     
-    if (!status) {
-      return res.status(404).json({ error: 'Pond not found' });
-    }
-
-    res.json({ success: true, data: status });
+    const status = await getPondStatus(req.params.id);
+    res.json({ status });
   } catch (error) {
-    console.error('Error fetching pond status:', error);
+    console.error('Fetch pond status error:', error);
     res.status(500).json({ error: 'Failed to fetch pond status' });
   }
 });
 
-/**
- * GET /api/ponds/:id/history
- * Get historical sensor readings for a pond
- * Query params: sensorType, startTime, endTime
- */
-router.get('/:id/history', auth, async (req, res) => {
+// Get pond historical readings
+router.get('/:id/history', async (req, res) => {
   try {
+    const pond = await getPondById(req.params.id);
+    
+    if (!pond) {
+      return res.status(404).json({ error: 'Pond not found' });
+    }
+    
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     const { sensorType, startTime, endTime } = req.query;
     
-    if (!sensorType) {
-      return res.status(400).json({ error: 'Sensor type is required' });
+    if (!sensorType || !startTime || !endTime) {
+      return res.status(400).json({ error: 'Missing required query parameters: sensorType, startTime, endTime' });
     }
-
-    const start = startTime ? new Date(startTime) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default 7 days
-    const end = endTime ? new Date(endTime) : new Date();
-
-    const history = await pondService.getPondHistory(
-      req.user.organizationId, 
-      req.params.id, 
-      sensorType, 
-      start.toISOString(), 
-      end.toISOString()
-    );
-
-    res.json({ success: true, data: history });
+    
+    const history = await getPondHistory(req.params.id, sensorType, startTime, endTime);
+    res.json({ history });
   } catch (error) {
-    console.error('Error fetching pond history:', error);
+    console.error('Fetch pond history error:', error);
     res.status(500).json({ error: 'Failed to fetch pond history' });
   }
 });
 
-module.exports = router;
+// Update pond
+router.put('/:id', async (req, res) => {
+  try {
+    const pond = await getPondById(req.params.id);
+    
+    if (!pond) {
+      return res.status(404).json({ error: 'Pond not found' });
+    }
+    
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const updatedPond = await updatePond(req.params.id, req.body);
+    res.json({ message: 'Pond updated successfully', pond: updatedPond });
+  } catch (error) {
+    console.error('Update pond error:', error);
+    res.status(400).json({ error: error.message || 'Failed to update pond' });
+  }
+});
+
+// Delete pond
+router.delete('/:id', async (req, res) => {
+  try {
+    const pond = await getPondById(req.params.id);
+    
+    if (!pond) {
+      return res.status(404).json({ error: 'Pond not found' });
+    }
+    
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    await deletePond(req.params.id);
+    res.json({ message: 'Pond deleted successfully' });
+  } catch (error) {
+    console.error('Delete pond error:', error);
+    res.status(500).json({ error: 'Failed to delete pond' });
+  }
+});
+
+export default router;
