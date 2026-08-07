@@ -9,6 +9,9 @@ import pool from './db/index.js';
 import authRoutes from './routes/auth.js';
 import farmRoutes from './routes/farms.js';
 import pondRoutes from './routes/ponds.js';
+import billingRoutes from './routes/billing.js';
+import supportRoutes from './routes/support.js';
+import auditRoutes from './routes/audit.js';
 import { mqttClient } from './mqtt/client.js';
 
 dotenv.config();
@@ -79,6 +82,9 @@ app.get('/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/farms', farmRoutes);
 app.use('/api/ponds', pondRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -89,7 +95,10 @@ app.get('/', (req, res) => {
       health: '/health',
       auth: '/api/auth',
       farms: '/api/farms',
-      ponds: '/api/ponds'
+      ponds: '/api/ponds',
+      billing: '/api/billing',
+      support: '/api/support',
+      audit: '/api/audit'
     }
   });
 });
