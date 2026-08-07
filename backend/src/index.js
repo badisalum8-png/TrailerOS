@@ -3,13 +3,16 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import mqtt from 'mqtt';
 import winston from 'winston';
 
 import pool from './db/index.js';
 import authRoutes from './routes/auth.js';
 import farmRoutes from './routes/farms.js';
-import { handleTelemetry, handleCommandResponse } from './services/telemetryService.js';
+import pondRoutes from './routes/ponds.js';
+import billingRoutes from './routes/billing.js';
+import supportRoutes from './routes/support.js';
+import auditRoutes from './routes/audit.js';
+import { mqttClient } from './mqtt/client.js';
 
 dotenv.config();
 
@@ -64,7 +67,7 @@ app.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       services: {
         database: 'connected',
-        mqtt: mqttClient ? 'connected' : 'disconnected'
+        mqtt: mqttClient.isConnected ? 'connected' : 'disconnected'
       }
     });
   } catch (error) {
@@ -78,6 +81,10 @@ app.get('/health', async (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/farms', farmRoutes);
+app.use('/api/ponds', pondRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -87,7 +94,11 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       auth: '/api/auth',
-      farms: '/api/farms'
+      farms: '/api/farms',
+      ponds: '/api/ponds',
+      billing: '/api/billing',
+      support: '/api/support',
+      audit: '/api/audit'
     }
   });
 });
@@ -100,67 +111,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// MQTT Client Setup
-const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
-let mqttClient = null;
-
-const connectMQTT = () => {
-  mqttClient = mqtt.connect(MQTT_BROKER_URL, {
-    clientId: `backend_${Date.now()}`,
-    clean: true,
-    reconnectPeriod: 5000,
-    connectTimeout: 30000
-  });
-
-  mqttClient.on('connect', () => {
-    logger.info('Connected to MQTT broker');
-    
-    // Subscribe to device telemetry topics
-    mqttClient.subscribe('aquaculture/+/telemetry', (err) => {
-      if (err) {
-        logger.error('Failed to subscribe to telemetry topic:', err);
-      } else {
-        logger.info('Subscribed to telemetry topic');
-      }
-    });
-    
-    // Subscribe to command response topics
-    mqttClient.subscribe('aquaculture/+/command/response', (err) => {
-      if (err) {
-        logger.error('Failed to subscribe to command response topic:', err);
-      } else {
-        logger.info('Subscribed to command response topic');
-      }
-    });
-  });
-
-  mqttClient.on('message', async (topic, message) => {
-    try {
-      const payload = JSON.parse(message.toString());
-      
-      if (topic.includes('telemetry')) {
-        await handleTelemetry(payload);
-      } else if (topic.includes('command/response')) {
-        await handleCommandResponse(payload);
-      }
-    } catch (error) {
-      logger.error('Error processing MQTT message:', error);
-    }
-  });
-
-  mqttClient.on('error', (error) => {
-    logger.error('MQTT client error:', error);
-  });
-
-  mqttClient.on('reconnect', () => {
-    logger.info('Reconnecting to MQTT broker...');
-  });
-
-  mqttClient.on('close', () => {
-    logger.warn('MQTT connection closed');
-  });
-};
-
 // Start server
 const startServer = async () => {
   try {
@@ -169,7 +119,7 @@ const startServer = async () => {
     logger.info('Database connection established');
     
     // Connect to MQTT broker
-    connectMQTT();
+    mqttClient.connect();
     
     // Start Express server
     app.listen(PORT, () => {
@@ -186,8 +136,8 @@ const startServer = async () => {
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received. Shutting down gracefully...');
   
-  if (mqttClient) {
-    mqttClient.end();
+  if (mqttClient.client) {
+    mqttClient.client.end();
   }
   
   pool.end(() => {
@@ -199,8 +149,8 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   logger.info('SIGINT received. Shutting down gracefully...');
   
-  if (mqttClient) {
-    mqttClient.end();
+  if (mqttClient.client) {
+    mqttClient.client.end();
   }
   
   pool.end(() => {
