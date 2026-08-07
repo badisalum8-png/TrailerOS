@@ -1,0 +1,3 @@
+Nothing should be ignored in this case, as the added files are all documentation and test script files (.md and .sh), which are source/config files that should be tracked in version control. There are no build artifacts, dependencies, or temporary files in the changes.
+
+Output: (nothing)
