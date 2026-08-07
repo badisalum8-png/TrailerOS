@@ -2,49 +2,57 @@
 # Dependencies
 node_modules/
 
-# Build artifacts
-backend/dist/
-backend/build/
-firmware/build/
-firmware/.pioenvs/
-firmware/.piolibdeps/
-
-# Logs and temp files
+# Logs
 *.log
-*.tmp
-*.swp
+backend/logs/
 
 # Environment variables
 .env
 .env.local
-*.env.*
+.env.*
 
-# Editors
+# IDE
 .vscode/
 .idea/
 
-# OS specific
-.DS_Store
-Thumbs.db
+# Build artifacts
+dist/
+build/
+target/
 
-# Python (if any Python files exist in backend)
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-*.so
+env/
+venv/
+.venv/
 
-# Coverage reports
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.db-journal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.swp
+*.swo
+
+# Coverage
 coverage/
 htmlcov/
-.coverage
 
-# Testing
-.mypy_cache/
-.pytest_cache/
-
-# Compressed files
+# Compression
 *.zip
 *.gz
 *.tar
@@ -67,4 +75,5 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+
 ```

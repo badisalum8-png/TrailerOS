@@ -1,4 +1,4 @@
-const db = require('../db');
+import db from '../db/index.js';
 
 /**
  * Pond Service - Handles pond CRUD operations
@@ -49,6 +49,22 @@ class PondService {
     `;
     
     const result = await db.query(query, [organizationId, farmId]);
+    return result.rows;
+  }
+
+  /**
+   * Get all ponds by farm ID (alias for backward compatibility)
+   */
+  async getAllPondsByFarm(farmId) {
+    const query = `
+      SELECT p.*, f.name as farm_name
+      FROM ponds p
+      JOIN farms f ON p.farm_id = f.id
+      WHERE p.farm_id = $1
+      ORDER BY p.created_at DESC
+    `;
+    
+    const result = await db.query(query, [farmId]);
     return result.rows;
   }
 
@@ -179,4 +195,4 @@ class PondService {
   }
 }
 
-module.exports = new PondService();
+export default new PondService();

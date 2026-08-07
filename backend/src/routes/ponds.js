@@ -1,13 +1,14 @@
-const express = require('express');
+import express from 'express';
+import pondService from '../services/pondService.js';
+import { authenticate, checkOrganizationAccess } from '../middleware/auth.js';
+
 const router = express.Router();
-const pondService = require('../services/pondService');
-const auth = require('../middleware/auth');
 
 /**
  * POST /api/ponds
  * Create a new pond
  */
-router.post('/', auth, async (req, res) => {
+router.post('/', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
     const { farmId, name, code, pondType, waterSource, volumeLiters, areaSqm, fishSpecies, stockingDate, targetHarvestDate } = req.body;
     
@@ -15,7 +16,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: 'Farm ID and pond name are required' });
     }
 
-    const pond = await pondService.createPond(req.user.organizationId, farmId, {
+    const pond = await pondService.createPond(req.contextOrganizationId, farmId, {
       name,
       code,
       pondType,
@@ -38,7 +39,7 @@ router.post('/', auth, async (req, res) => {
  * GET /api/ponds?farmId=xxx
  * Get all ponds for a specific farm
  */
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
     const { farmId } = req.query;
     
@@ -46,7 +47,7 @@ router.get('/', auth, async (req, res) => {
       return res.status(400).json({ error: 'Farm ID is required' });
     }
 
-    const ponds = await pondService.getPondsByFarm(req.user.organizationId, farmId);
+    const ponds = await pondService.getPondsByFarm(req.contextOrganizationId, farmId);
     res.json({ success: true, data: ponds });
   } catch (error) {
     console.error('Error fetching ponds:', error);
@@ -58,9 +59,9 @@ router.get('/', auth, async (req, res) => {
  * GET /api/ponds/:id
  * Get a single pond by ID
  */
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
-    const pond = await pondService.getPondById(req.user.organizationId, req.params.id);
+    const pond = await pondService.getPondById(req.contextOrganizationId, req.params.id);
     
     if (!pond) {
       return res.status(404).json({ error: 'Pond not found' });
@@ -77,11 +78,11 @@ router.get('/:id', auth, async (req, res) => {
  * PUT /api/ponds/:id
  * Update pond details
  */
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
     const updates = req.body;
     
-    const pond = await pondService.updatePond(req.user.organizationId, req.params.id, updates);
+    const pond = await pondService.updatePond(req.contextOrganizationId, req.params.id, updates);
     
     if (!pond) {
       return res.status(404).json({ error: 'Pond not found' });
@@ -98,9 +99,9 @@ router.put('/:id', auth, async (req, res) => {
  * DELETE /api/ponds/:id
  * Delete a pond
  */
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
-    const deleted = await pondService.deletePond(req.user.organizationId, req.params.id);
+    const deleted = await pondService.deletePond(req.contextOrganizationId, req.params.id);
     
     if (!deleted) {
       return res.status(404).json({ error: 'Pond not found' });
@@ -117,9 +118,9 @@ router.delete('/:id', auth, async (req, res) => {
  * GET /api/ponds/:id/status
  * Get pond current status with latest sensor readings
  */
-router.get('/:id/status', auth, async (req, res) => {
+router.get('/:id/status', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
-    const status = await pondService.getPondStatus(req.user.organizationId, req.params.id);
+    const status = await pondService.getPondStatus(req.contextOrganizationId, req.params.id);
     
     if (!status) {
       return res.status(404).json({ error: 'Pond not found' });
@@ -137,7 +138,7 @@ router.get('/:id/status', auth, async (req, res) => {
  * Get historical sensor readings for a pond
  * Query params: sensorType, startTime, endTime
  */
-router.get('/:id/history', auth, async (req, res) => {
+router.get('/:id/history', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
     const { sensorType, startTime, endTime } = req.query;
     
@@ -149,7 +150,7 @@ router.get('/:id/history', auth, async (req, res) => {
     const end = endTime ? new Date(endTime) : new Date();
 
     const history = await pondService.getPondHistory(
-      req.user.organizationId, 
+      req.contextOrganizationId, 
       req.params.id, 
       sensorType, 
       start.toISOString(), 
@@ -163,4 +164,4 @@ router.get('/:id/history', auth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
