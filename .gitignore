@@ -2,57 +2,42 @@
 # Dependencies
 node_modules/
 
-# Logs
-*.log
-backend/logs/
-
 # Environment variables
 .env
 .env.local
 .env.*
 
-# IDE
+# IDE files
 .vscode/
 .idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
 
 # Build artifacts
 dist/
 build/
 target/
 
-# Python
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
-.venv/
 
-# Node.js
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
 
-# Database
-*.db
-*.db-journal
-
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
 
-# Backup files
-*.bak
-*.swp
-*.swo
-
-# Coverage
-coverage/
-htmlcov/
-
-# Compression
+# Compression files
 *.zip
 *.gz
 *.tar
@@ -75,5 +60,4 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-
 ```
