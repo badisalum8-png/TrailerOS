@@ -7,7 +7,7 @@ import {
   deleteFarm,
   getFarmSummary 
 } from '../services/farmService.js';
-import { getPondsByFarm } from '../services/pondService.js';
+import pondService from '../services/pondService.js';
 import { authenticate, checkOrganizationAccess } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -93,7 +93,7 @@ router.get('/:id/ponds', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    const ponds = await getPondsByFarm(req.params.id);
+    const ponds = await pondService.getPondsByFarm(req.contextOrganizationId, req.params.id);
     res.json({ ponds });
   } catch (error) {
     console.error('Fetch ponds error:', error);

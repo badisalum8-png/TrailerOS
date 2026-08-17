@@ -1,4 +1,4 @@
-import { query } from '../db/index.js';
+import db from '../db/index.js';
 
 /**
  * Pond Service - Handles pond CRUD operations
@@ -65,15 +65,36 @@ export const getPondById = async (pondId) => {
   return result.rows[0] || null;
 };
 
-/**
- * Update pond details
- */
-export const updatePond = async (pondId, updates) => {
-  const allowedFields = [
-    'name', 'code', 'pond_type', 'water_source', 
-    'volume_liters', 'area_sqm', 'fish_species', 
-    'stocking_date', 'target_harvest_date', 'current_status'
-  ];
+  /**
+   * Get all ponds by farm ID (alias for backward compatibility)
+   */
+  async getAllPondsByFarm(farmId) {
+    const query = `
+      SELECT p.*, f.name as farm_name
+      FROM ponds p
+      JOIN farms f ON p.farm_id = f.id
+      WHERE p.farm_id = $1
+      ORDER BY p.created_at DESC
+    `;
+    
+    const result = await db.query(query, [farmId]);
+    return result.rows;
+  }
+
+  /**
+   * Get a single pond by ID
+   */
+  async getPondById(organizationId, pondId) {
+    const query = `
+      SELECT p.*, f.name as farm_name, f.code as farm_code
+      FROM ponds p
+      JOIN farms f ON p.farm_id = f.id
+      WHERE p.organization_id = $1 AND p.id = $2
+    `;
+    
+    const result = await db.query(query, [organizationId, pondId]);
+    return result.rows[0] || null;
+  }
 
   const fields = [];
   const values = [];
@@ -105,70 +126,4 @@ export const updatePond = async (pondId, updates) => {
   return result.rows[0] || null;
 };
 
-/**
- * Delete a pond
- */
-export const deletePond = async (pondId) => {
-  const result = await query(
-    `DELETE FROM ponds WHERE id = $1 RETURNING id`,
-    [pondId]
-  );
-  
-  return result.rowCount > 0;
-};
-
-/**
- * Get pond current status with latest sensor readings
- */
-export const getPondStatus = async (pondId) => {
-  const result = await query(
-    `SELECT 
-      p.*,
-      d.id as device_id,
-      d.status as device_status,
-      d.battery_level,
-      d.signal_strength,
-      latest_readings.readings
-    FROM ponds p
-    LEFT JOIN devices d ON d.pond_id = p.id AND d.status = 'online'
-    LEFT JOIN LATERAL (
-      SELECT json_object_agg(sr.sensor_type, sr.value) as readings
-      FROM (
-        SELECT sensor_type, value
-        FROM sensor_readings
-        WHERE device_id = d.id
-        AND time > NOW() - INTERVAL '1 hour'
-        ORDER BY time DESC
-        LIMIT 10
-      ) sr
-    ) latest_readings ON true
-    WHERE p.id = $1`,
-    [pondId]
-  );
-  
-  return result.rows[0] || null;
-};
-
-/**
- * Get historical readings for a pond
- */
-export const getPondHistory = async (pondId, sensorType, startTime, endTime) => {
-  const result = await query(
-    `SELECT 
-      time_bucket('1 hour', sr.time) as time_period,
-      sr.sensor_type,
-      AVG(sr.value) as avg_value,
-      MIN(sr.value) as min_value,
-      MAX(sr.value) as max_value
-    FROM sensor_readings sr
-    JOIN devices d ON sr.device_id = d.id
-    WHERE d.pond_id = $1
-      AND sr.sensor_type = $2
-      AND sr.time BETWEEN $3 AND $4
-    GROUP BY time_period, sr.sensor_type
-    ORDER BY time_period DESC`,
-    [pondId, sensorType, startTime, endTime]
-  );
-  
-  return result.rows;
-};
+export default new PondService();

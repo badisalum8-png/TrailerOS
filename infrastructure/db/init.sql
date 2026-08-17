@@ -227,3 +227,182 @@ VALUES (
     'OWNER', 
     'System Administrator'
 );
+
+-- =====================================================
+-- PHASE 3: BUSINESS FEATURES - ADDITIONAL TABLES
+-- =====================================================
+
+-- Marketplace Tables (B2B Trading Platform)
+CREATE TABLE IF NOT EXISTS marketplace_listings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id),
+    listing_type VARCHAR(20) NOT NULL, -- 'sell' or 'buy_request'
+    category VARCHAR(50) NOT NULL, -- 'feed', 'equipment', 'fish', 'services'
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    quantity_available DECIMAL(10,2),
+    unit_price DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    quality_grade VARCHAR(50),
+    delivery_options JSONB,
+    images JSONB,
+    status VARCHAR(20) DEFAULT 'active',
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id UUID REFERENCES marketplace_listings(id),
+    buyer_organization_id UUID REFERENCES organizations(id),
+    seller_organization_id UUID REFERENCES organizations(id),
+    quantity DECIMAL(10,2) NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    delivery_address JSONB,
+    expected_delivery_date DATE,
+    payment_status VARCHAR(20) DEFAULT 'pending',
+    escrow_status VARCHAR(20) DEFAULT 'held',
+    order_status VARCHAR(20) DEFAULT 'confirmed',
+    delivered_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES marketplace_orders(id),
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    transaction_type VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'pending',
+    transaction_ref VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insurance Tables (Parametric Insurance)
+CREATE TABLE IF NOT EXISTS insurance_policies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id),
+    farm_id UUID REFERENCES farms(id),
+    pond_id UUID REFERENCES ponds(id),
+    policy_type VARCHAR(50) NOT NULL,
+    coverage_amount DECIMAL(12,2) NOT NULL,
+    deductible DECIMAL(10,2) DEFAULT 0,
+    premium_amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    trigger_conditions JSONB NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    risk_score INTEGER DEFAULT 50,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS insurance_payouts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    policy_id UUID REFERENCES insurance_policies(id),
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    trigger_event JSONB NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    processed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS insurance_claims (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    policy_id UUID REFERENCES insurance_policies(id),
+    organization_id UUID REFERENCES organizations(id),
+    claim_type VARCHAR(50) NOT NULL,
+    description TEXT,
+    claimed_amount DECIMAL(10,2) NOT NULL,
+    supporting_documents JSONB,
+    incident_date DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'submitted',
+    adjuster_notes TEXT,
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Compliance Tables (Regulatory Reporting)
+CREATE TABLE IF NOT EXISTS compliance_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id),
+    report_type VARCHAR(50) NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    report_data JSONB,
+    pdf_url VARCHAR(500),
+    status VARCHAR(20) DEFAULT 'generated',
+    generated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chemical_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pond_id UUID REFERENCES ponds(id),
+    chemical_name VARCHAR(255) NOT NULL,
+    quantity_used DECIMAL(10,2) NOT NULL,
+    unit VARCHAR(50) NOT NULL,
+    purpose VARCHAR(255),
+    application_date DATE NOT NULL,
+    withdrawal_period_days INTEGER,
+    applied_by VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS farm_certifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    farm_id UUID REFERENCES farms(id),
+    certification_type VARCHAR(100) NOT NULL,
+    certifying_body VARCHAR(255),
+    certificate_number VARCHAR(100),
+    issue_date DATE NOT NULL,
+    expiry_date DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    certificate_url VARCHAR(500),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Growth & Engagement Tables (Gamification)
+CREATE TABLE IF NOT EXISTS farmer_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) UNIQUE,
+    total_score INTEGER DEFAULT 0,
+    level VARCHAR(50) DEFAULT 'Beginner',
+    score_components JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS farmer_badges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id),
+    badge_code VARCHAR(50) NOT NULL,
+    badge_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    awarded_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, badge_code)
+);
+
+CREATE TABLE IF NOT EXISTS consultant_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id),
+    consultant_specialization VARCHAR(50) NOT NULL,
+    issue_description TEXT,
+    preferred_date DATE,
+    urgency VARCHAR(20) DEFAULT 'medium',
+    status VARCHAR(20) DEFAULT 'pending',
+    assigned_consultant_id UUID REFERENCES users(id),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Performance Indexes for Business Features
+CREATE INDEX IF NOT EXISTS idx_marketplace_listings_category ON marketplace_listings(category, status);
+CREATE INDEX IF NOT EXISTS idx_insurance_policies_status ON insurance_policies(status, end_date);
+CREATE INDEX IF NOT EXISTS idx_compliance_reports_org ON compliance_reports(organization_id, report_type);
+CREATE INDEX IF NOT EXISTS idx_farmer_profiles_score ON farmer_profiles(total_score DESC);
+CREATE INDEX IF NOT EXISTS idx_organizations_location ON organizations USING GIST(location);
+
