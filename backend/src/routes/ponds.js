@@ -10,10 +10,10 @@ const router = express.Router();
  */
 router.post('/', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
-    const { farmId, name, code, pondType, waterSource, volumeLiters, areaSqm, fishSpecies, stockingDate, targetHarvestDate } = req.body;
+    const farm = await getFarmById(req.params.farmId);
     
-    if (!farmId || !name) {
-      return res.status(400).json({ error: 'Farm ID and pond name are required' });
+    if (!farm) {
+      return res.status(404).json({ error: 'Farm not found' });
     }
 
     const pond = await pondService.createPond(req.contextOrganizationId, farmId, {
@@ -43,14 +43,14 @@ router.get('/', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
     const { farmId } = req.query;
     
-    if (!farmId) {
-      return res.status(400).json({ error: 'Farm ID is required' });
+    if (farm.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     const ponds = await pondService.getPondsByFarm(req.contextOrganizationId, farmId);
     res.json({ success: true, data: ponds });
   } catch (error) {
-    console.error('Error fetching ponds:', error);
+    console.error('Fetch ponds error:', error);
     res.status(500).json({ error: 'Failed to fetch ponds' });
   }
 });
@@ -66,10 +66,14 @@ router.get('/:id', authenticate, checkOrganizationAccess, async (req, res) => {
     if (!pond) {
       return res.status(404).json({ error: 'Pond not found' });
     }
-
-    res.json({ success: true, data: pond });
+    
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    res.json({ pond });
   } catch (error) {
-    console.error('Error fetching pond:', error);
+    console.error('Fetch pond error:', error);
     res.status(500).json({ error: 'Failed to fetch pond' });
   }
 });
@@ -103,8 +107,8 @@ router.delete('/:id', authenticate, checkOrganizationAccess, async (req, res) =>
   try {
     const deleted = await pondService.deletePond(req.contextOrganizationId, req.params.id);
     
-    if (!deleted) {
-      return res.status(404).json({ error: 'Pond not found' });
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     res.json({ success: true, message: 'Pond deleted successfully' });
@@ -122,13 +126,10 @@ router.get('/:id/status', authenticate, checkOrganizationAccess, async (req, res
   try {
     const status = await pondService.getPondStatus(req.contextOrganizationId, req.params.id);
     
-    if (!status) {
-      return res.status(404).json({ error: 'Pond not found' });
-    }
-
-    res.json({ success: true, data: status });
+    const status = await getPondStatus(req.params.id);
+    res.json({ status });
   } catch (error) {
-    console.error('Error fetching pond status:', error);
+    console.error('Fetch pond status error:', error);
     res.status(500).json({ error: 'Failed to fetch pond status' });
   }
 });
@@ -140,10 +141,20 @@ router.get('/:id/status', authenticate, checkOrganizationAccess, async (req, res
  */
 router.get('/:id/history', authenticate, checkOrganizationAccess, async (req, res) => {
   try {
+    const pond = await getPondById(req.params.id);
+    
+    if (!pond) {
+      return res.status(404).json({ error: 'Pond not found' });
+    }
+    
+    if (pond.organization_id !== req.contextOrganizationId && req.user.role !== 'SYSTEM_OWNER') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     const { sensorType, startTime, endTime } = req.query;
     
-    if (!sensorType) {
-      return res.status(400).json({ error: 'Sensor type is required' });
+    if (!sensorType || !startTime || !endTime) {
+      return res.status(400).json({ error: 'Missing required query parameters: sensorType, startTime, endTime' });
     }
 
     const start = startTime ? new Date(startTime) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default 7 days
@@ -159,7 +170,7 @@ router.get('/:id/history', authenticate, checkOrganizationAccess, async (req, re
 
     res.json({ success: true, data: history });
   } catch (error) {
-    console.error('Error fetching pond history:', error);
+    console.error('Fetch pond history error:', error);
     res.status(500).json({ error: 'Failed to fetch pond history' });
   }
 });

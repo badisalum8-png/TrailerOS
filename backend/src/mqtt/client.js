@@ -1,7 +1,7 @@
 import mqtt from 'mqtt';
 import dotenv from 'dotenv';
-import { handleTelemetry } from '../services/telemetry.service.js';
-import { handleCommandResponse } from '../services/command.service.js';
+import { handleTelemetry } from '../services/telemetryService.js';
+import { handleCommandResponse } from '../services/commandService.js';
 
 dotenv.config();
 
@@ -78,7 +78,7 @@ class MQTTClient {
 
     switch (messageType) {
       case 'telemetry':
-        await handleTelemetry(deviceId, payload);
+        await handleTelemetry(payload);
         break;
       case 'command':
         if (parts[3] === 'response') {
